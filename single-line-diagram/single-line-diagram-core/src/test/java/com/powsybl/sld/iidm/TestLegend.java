@@ -8,7 +8,7 @@
 package com.powsybl.sld.iidm;
 
 import com.powsybl.diagram.test.Networks;
-import com.powsybl.iidm.network.Network;
+import com.powsybl.iidm.network.*;
 import com.powsybl.sld.builders.NetworkGraphBuilder;
 import com.powsybl.sld.model.graphs.VoltageLevelGraph;
 import com.powsybl.sld.svg.DefaultSVGLegendWriter;
@@ -23,6 +23,7 @@ import org.w3c.dom.Element;
 
 import java.io.IOException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -87,6 +88,52 @@ class TestLegend extends AbstractTestCaseIidm {
 
         // write SVG and compare to reference
         assertEquals(toString("/TestLegendSpecific.svg"), toSVG(g, "/TestLegendSpecific.svg"));
+    }
+
+    @Test
+    void testLegendDisplaysBusFictitiousInjectionsWhenPresent() {
+        // Given
+        legendWriter = new DefaultSVGLegendWriter(network, svgParameters);
+        svgParameters.setBusesLegendAdded(true);
+        VoltageLevel vl = network.getVoltageLevel("VoltageLevel1"); // BUS_BREAKER
+
+        // fictive injection : Bus 1
+        vl.getBusBreakerView().getBus("Bus1")
+                .setFictitiousP0(1)
+                .setFictitiousQ0(-1);
+        // build graph
+        VoltageLevelGraph g = graphBuilder.buildVoltageLevelGraph("VoltageLevel1");
+
+        // Run layout
+        voltageLevelGraphLayout(g);
+
+        String svg = toSVG(g, "/TestLegendFictitiousInjection.svg");
+        assertEquals(toString("/legend-fictitious-injection-bus-breaker.svg"), svg);
+        assertThat(svg).contains("1 MW", "-1 MVar");
+    }
+
+    @Test
+    void testLegendDisplaysNodeFictitiousInjectionsWhenPresent() {
+        svgParameters.setBusesLegendAdded(true);
+        legendWriter = new DefaultSVGLegendWriter(network, svgParameters);
+        network = Networks.createBusbarLoadNetwork(); // NODE_BREAKER
+        legendWriter = new DefaultSVGLegendWriter(network, svgParameters);
+        graphBuilder = new NetworkGraphBuilder(network);
+        VoltageLevel vl = network.getVoltageLevel("VoltageLevel1");
+
+        // fictive injection : node 1
+        vl.getNodeBreakerView()
+                .setFictitiousP0(1, 1)
+                .setFictitiousQ0(1, -1.0);
+
+        // build graph
+        VoltageLevelGraph g = graphBuilder.buildVoltageLevelGraph("VoltageLevel1");
+        // Run layout
+        voltageLevelGraphLayout(g);
+
+        String svg = toSVG(g, "/TestLegendFictitiousInjection.svg");
+        assertEquals(toString("/legend-fictitious-injection-node-breaker.svg"), svg);
+        assertThat(svg).contains("1 MW", "-1 MVar");
     }
 
     @Override
